@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: LicenseRef-Propietario
+#
+# TODAS las dependencias salen de `vendor/`, dentro del repositorio. No se
+# descarga nada: ni el índice de crates.io, ni un `.crate`, ni el espejo de git.
+#
+# El positivo de control NO es `--offline`, que solo prueba que no salió a la red
+# pudiendo tirar de la caché de `~/.cargo`. Lo que discrimina es la caché VACÍA:
+#
+#     CARGO_HOME=$(mktemp -d) cargo test --offline
+#
+# POR QUÉ — decisión de Juan, 2026-08-14: «no podemos depender de herramientas
+# online hasta saber que todo es seguro, y eso va a tardar». El protocolo «solo
+# local» sacó el CÓDIGO de los registros; esto saca la CONSTRUCCIÓN. Un registro
+# comprometido —Shai-Hulud, ChainDrop— entraba por el build aunque nuestro
+# código no estuviera publicado en ninguna parte.
+#
+# Y HAY UN ESLABÓN QUE CARGO NO VERIFICA: comprueba `Cargo.lock` ↔ campo
+# `package` y campo `files` ↔ bytes, pero NO `package` ↔ `files`, y offline no
+# puede. Editar un archivo Y su entrada en `files` compila en silencio. Lo que sí
+# ancla los bytes, y va tras cada re-vendorizado:
+#
+#     CARGO_HOME=$(mktemp -d) cargo vendor "$D" && diff -r --brief vendor "$D"
+#
+# LA CLAVE DE LA FUENTE CASA CON LO QUE DECLARA EL `Cargo.toml`, no con el hash
+# completo. Cargo la compara por la cadena EXACTA del `Cargo.lock`, y esa cadena
+# copia el `rev` tal como se escribió arriba: aquí `?rev=c7de2e8` porque
+# `inventario-api` lo declara abreviado; en tunjo va de 40 dígitos porque allí
+# se declara completo. Poner el que no es falla con «failed to get X as a
+# dependency», que no dice cuál es el problema — costó un intento el 2026-08-14.
+#
+# Rutas RELATIVAS a propósito: cargo las escribe absolutas y eso ata el
+# repositorio a esta máquina — un clon en otro sitio dejaría de compilar sin
+# decir por qué.
+
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source."git+file:///home/juan/espejos/mirilla.git?rev=c7de2e8"]
+git = "file:///home/juan/espejos/mirilla.git"
+rev = "c7de2e8"
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"

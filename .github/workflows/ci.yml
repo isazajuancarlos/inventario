@@ -1,0 +1,112 @@
+# EL VERDE LOCAL DE `inventario`. NO lo corre GitHub.
+#
+# Actions está apagado en toda la cuenta desde el protocolo «solo local»
+# (2026-08-10), así que este archivo no se ejecuta en ningún runner. Existe
+# porque **es la definición del verde**, y la lee `conocimiento/cupo/verde_local.py`:
+#
+#     python3 /mnt/data/conocimiento/cupo/verde_local.py inventario
+#
+# Ese guion abre este archivo, saca los `run:` en su orden y los ejecuta, para
+# que «el comando exacto del CI» no sea una frase que se copia a mano y envejece.
+#
+# POR QUÉ NACE EL 2026-08-13, tarde: inventario era el ÚNICO producto Rust sin
+# este archivo —quipu, guaca, tunjo, medico, informes y chasqui lo tienen—, así
+# que `verde_local.py inventario` contestaba «NO EXISTE» y su verde era lo que
+# alguien recordara haber corrido. Un producto que factura contra resolución
+# DIAN no puede tener eso por medición.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# La rama que se publica se excluye con el GRUPO, no con la bandera:
+# `cancel-in-progress: false` no cancela la corrida EN CURSO, pero sí las
+# ENCOLADAS, así que con tres merges seguidos el commit de en medio no se mide
+# jamás mientras la rama se ve verde. Dándole a cada commit de `main` su propio
+# grupo, la promesa se cumple de verdad.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}', github.sha) || '' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    # El techo, no la duración esperada. Sin él, una prueba colgada se come los
+    # 360 minutos por defecto y nadie se entera hasta el día siguiente.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      # DEBUG Y RELEASE MIDEN COSAS DISTINTAS AQUÍ, y por eso van los dos.
+      #
+      # LA JUSTIFICACIÓN QUE PUSE AQUÍ ERA FALSA, y se corrige sin borrarla
+      # porque era una MEDICIÓN citada, no una opinión.
+      #
+      # Decía: «el `+` de `Centavos` entra en pánico en debug y da la vuelta en
+      # release … medido el 2026-08-13, el mutante se pone rojo en release y no
+      # en debug». `Cargo.toml` lleva `[profile.release] overflow-checks = true`
+      # desde el 2026-08-12, así que el desbordamiento es PÁNICO en los DOS
+      # perfiles y aquel mutante salía rojo en los dos. Lo cazó la revisión de
+      # seguridad del 2026-08-13 midiendo el artefacto.
+      #
+      # El paso se queda, con el motivo bueno: `debug_assertions` y las
+      # optimizaciones cambian caminos —desde un `debug_assert!` hasta el
+      # comportamiento de un `as`, que `overflow-checks` NO mira en ningún
+      # perfil—, y el binario que se instala en casa del cliente es el de
+      # release. Una suite que solo corre en debug mide un binario distinto del
+      # que se entrega (directiva 31).
+      - run: cargo test --workspace
+      - run: cargo test --release --workspace
+
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # CADENA DE SUMINISTRO. Lo pidió la revisión de seguridad del 2026-08-13:
+      # `inventario` era el ÚNICO de los cinco productos Rust sin `deny.toml`
+      # —chasqui, guaca, medico y tunjo lo tienen— y es el que factura contra
+      # resolución DIAN. Sin este paso, el `Cargo.lock` puede ganar un registro o
+      # un `git` desconocido y salir verde en todo lo demás.
+      #
+      # `cargo audit` mira CVEs conocidos; `cargo deny check` mira además de
+      # DÓNDE viene cada cosa, que es el hueco que este repositorio tenía.
+      # VERSIÓN FIJADA (2026-08-14). `cargo install` NO pasa por `vendor/`: ignora
+      # la sustitución de fuentes —medido con su pareja, el mismo error dentro y
+      # fuera del repo—, así que baja de crates.io y compila los `build.rs` de su
+      # propio árbol, sin vendorizar y sin vigilar. Sin `--version` eso es «lo
+      # último publicado el día que se corra», que es justo la forma de los
+      # ataques que motivaron vendorizar. `--locked` NO lo cubre: fija el lock
+      # INTERNO de la herramienta, no cuál se instala.
+      - run: cargo install cargo-deny --locked --version 0.20.2
+      - run: cargo deny check
+
+      # NO HAY `cargo fmt --check`, y es deliberado. Lo puse, lo medí y lo
+      # quité: sale rojo en **428 archivos**, porque este árbol nunca se ha
+      # formateado con el rustfmt por defecto y no hay `rustfmt.toml` que fije
+      # otro estilo. Ninguno de los otros seis repositorios Rust lo incluye
+      # tampoco.
+      #
+      # Meterlo habría dado un verde que nace ROJO, que es peor que no tenerlo:
+      # a la segunda corrida se le añade un `|| true` y entonces el archivo miente
+      # sobre lo que mide. Formatear 428 archivos de golpe es una decisión aparte
+      # —entierra el historial y choca con toda rama en vuelo—, no algo que se
+      # cuela dentro de la tarea de escribir el CI.
+
+      # El banco de navegador ARRANCA CHROMIUM y falla ruidosamente si no está:
+      # un E2E que se salta solo es indistinguible de uno que pasa (directiva
+      # 30). Va aparte para que su fallo se lea como lo que es.
+      - run: cargo test -p inventario-api --test simulacion
+
+      # LA PUERTA DEL RE-VENDORIZADO: con el árbol congelado, el único momento en
+      # que puede entrar un script de construcción envenenado es al
+      # re-vendorizar — como entraron los gusanos de npm y del AUR. Se
+      # reconstruye la herramienta en el paso para que un binario viejo junto a
+      # una fuente nueva no pase por vigilante al día (directiva 38).
+      - name: Lo que corre al compilar sigue siendo lo aceptado
+        run: |
+          cargo build --release --quiet --manifest-path /mnt/data/conocimiento/lo-que-corre-al-compilar/Cargo.toml
+          /mnt/data/conocimiento/lo-que-corre-al-compilar/target/release/lo-que-corre-al-compilar "$PWD"

@@ -1,0 +1,81 @@
+[workspace]
+members = [
+    "crates/inventario-dominio",
+    "crates/inventario-datos",
+    "crates/inventario-api",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Juan Carlos Isaza <isazajuancarlos@gmail.com>"]
+license = "LicenseRef-Propietario"
+repository = "https://github.com/isazajuancarlos/inventario"
+# App propietaria: NUNCA se publica en crates.io. Explícito, para que un
+# `cargo publish` accidental falle y para que cargo-deny la trate como privada.
+publish = false
+
+# Puerta de buenas prácticas de Rust, por DEFECTO. clippy lee esta tabla solo; no
+# cambia el comando del CI. Es una PUERTA (deny), no un aviso: el CI corre
+# `-D warnings`, que escala todo `warn` a error, así que aquí solo entra lo que se
+# está dispuesto a BLOQUEAR.
+[workspace.lints.clippy]
+redundant_clone = "deny"    # clon innecesario (rendimiento)
+needless_collect = "deny"   # `.collect()` para volver a iterar (rendimiento)
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "migrate",
+    "macros",
+    "chrono",
+] }
+axum = "0.8"
+# El HTML lo compila `rustc`: plantillas con los tipos del dominio dentro, y un
+# error de plantilla es un error de compilación (directiva 26).
+maud = { version = "0.27", features = ["axum"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Las DEPENDENCIAS optimizadas también en debug (directiva 26). Nuestros crates
+# se quedan en debug puro —iteración y depurador intactos—; lo que se acelera es
+# lo de fuera, y aquí pesa Argon2id, que es lento a propósito y sin optimizar
+# multiplica el precio de cada prueba que crea un usuario.
+#
+# AVISO: no es una mejora universal. Compra ejecución rápida pagando compilación
+# lenta, así que rinde en proporción a lo que pese la EJECUCIÓN. En quipu fueron
+# 9,8×; en chasqui y medico no movió el número. Aquí NO está medido todavía: se
+# pone porque al nacer cuesta cero, no porque se le atribuya una ganancia.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+# **`overflow-checks` EN RELEASE, y aquí está el porqué.** Por omisión cargo los
+# apaga en release, así que la aritmética entera DA LA VUELTA en silencio — y este
+# binario cuenta dinero. Medido el 2026-08-12 por HTTP contra el binario real: un
+# recibo quedó persistido con `total = 84` mientras la suma de sus pagos era
+# 18 446 744 073 709 551 700, y la cartera bajó exactamente 84 centavos con un
+# acuse normal de 200.
+#
+# Lo que lo hacía invisible es la asimetría entre perfiles: el MISMO caso es
+# pánico ruidoso en debug y dato corrupto silencioso en release, y todo lo que se
+# corre normalmente —`cargo test`, y por tanto el verde local— es debug. O sea que
+# el banco medía un binario que se comporta distinto del que se instala. Con esto
+# los dos perfiles dicen lo mismo, que es la condición para que una prueba
+# signifique algo (directiva 31: el veredicto se ancla al ARTEFACTO).
+#
+# El sitio concreto que lo produjo se cerró aparte, con `Centavos::sumar`
+# (`checked_add`), porque un rechazo limpio es mejor que un pánico: esto es la red
+# de debajo, para la aritmética que nadie ha mirado todavía.
+#
+# El precio es una comprobación por operación entera. En un sistema que factura
+# —no en un bucle numérico— es ruido frente a SQLite y la red.
+overflow-checks = true

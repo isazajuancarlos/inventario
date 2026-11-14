@@ -1,0 +1,66 @@
+# cargo-deny — control de cadena de suministro.
+#
+# NACE EL 2026-08-13, y lo pidió una revisión de seguridad. `inventario` era el
+# ÚNICO de los cinco productos Rust sin este archivo —chasqui, guaca, medico y
+# tunjo lo tienen— y es el que factura contra resolución DIAN y guarda cartera de
+# terceros. El disparador concreto: la migración del arnés de pruebas a `mirilla`
+# metió una dependencia `git` nueva en el `Cargo.lock` **sin que nada la mirara**.
+# El mismo cambio en chasqui y en medico disparó `source-not-allowed`, que es lo
+# que este archivo existe para hacer.
+#
+# Lo que se protege no es esa fuente —es de casa y está fijada por SHA— sino la
+# SIGUIENTE: hoy este `Cargo.lock` podía ganar un registro o un `git`
+# desconocido y salir verde en los cuatro pasos del CI.
+
+[advisories]
+version = 2
+
+[licenses]
+version = 2
+# Allowlist AJUSTADA al árbol real (directiva 23): una licencia nueva en una
+# subida = rojo, y se decide a mano si entra. No se pre-aprueban licencias
+# ausentes «por si acaso» — eso convierte el guardián en un sello.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    # DE CASA: los tres crates de este workspace. `inventario` es producto de
+    # VENTA y su licencia es propietaria (directiva 10 y 12); sin esta línea,
+    # `cargo deny` rechaza el propio repositorio, que es el primer sitio donde
+    # una allowlist copiada de otro proyecto se estrella.
+    "LicenseRef-Propietario",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"   # avisa de versiones duplicadas (superficie + peso)
+wildcards = "deny"           # prohíbe version = "*" en deps EXTERNAS
+allow-wildcard-paths = true  # …pero no en los internos por `path` (son nuestros)
+
+[sources]
+# Una dependencia desde una fuente inesperada = rojo.
+unknown-registry = "deny"
+unknown-git = "deny"
+# `mirilla` es el arnés de navegador, extraído el 2026-08-10 de medico e informes
+# y consumido aquí desde el 2026-08-13. Va AL ESPEJO LOCAL y no a GitHub: el
+# protocolo «solo local» movió el origen de verdad a /home/juan/espejos, y en
+# GitHub el repositorio está vaciado —el rev sería un commit huérfano que deja de
+# compilar el día que pase el recolector, sin aviso—.
+#
+# Es `dev-dependency`, y aun así entra aquí: `cargo deny` mira el `Cargo.lock`
+# entero y hace bien, porque una dependencia de pruebas ejecuta código en la
+# máquina de quien compila.
+#
+# OJO AL ORDEN DE LAS RAMAS: esta entrada solo casa cuando `mirilla` está en el
+# `Cargo.lock`, o sea con la rama `pruebas/arnes-de-navegador-a-mirilla` dentro.
+# Corrido sobre una rama sin ella, `cargo deny` avisa «no crate source matched
+# these criteria» — es un aviso, no un fallo, y decir de más aquí es lo correcto:
+# quitar la línea para callar el aviso dejaría la puerta abierta el día del merge.
+allow-git = ["file:///home/juan/espejos/mirilla.git"]

@@ -1,0 +1,48 @@
+[package]
+name = "inventario-api"
+description = "El servidor HTTP (axum), la sesión y la interfaz empotrada."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+inventario-dominio = { path = "../inventario-dominio" }
+inventario-datos = { path = "../inventario-datos" }
+axum = { workspace = true }
+tokio = { workspace = true, features = ["fs", "signal"] }
+sqlx = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+# Contraseñas: Argon2id. El sistema viejo guardaba CLAVE_USU C(10) en claro.
+argon2 = "0.5"
+password-hash = { version = "0.5", features = ["std"] }
+# Firma de la cookie de sesión: HMAC-SHA256.
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+# El panel se teje EN EL SERVIDOR con maud; htmx y boi van vendorizados y
+# embebidos con `include_str!` (directiva 26). Ya no hay `ng build` ni rust-embed.
+maud = { workspace = true }
+
+[dev-dependencies]
+# Para ejercer las rutas como las ejerce un cliente: entra una petición, sale
+# una respuesta. Probar las funciones y no los handlers deja el cableado
+# —extractores, códigos de estado, cabeceras— sin que lo mire nadie.
+tower = { version = "0.5", features = ["util"] }
+# El arnés de navegador. `simulacion.rs` llevaba un TODO pidiendo justo esto:
+# `buscar_chromium` + `dibujar` eran la TERCERA copia de la misma pieza. El
+# repositorio existe desde el 2026-08-10 y se llama `mirilla` —el nombre lo puso
+# Juan, que era la condición que el TODO dejaba escrita—.
+#
+# Se consume por `rev` contra el ESPEJO LOCAL: en GitHub los commits son
+# huérfanos desde que se vaciaron los repositorios. `dev-dependency`, así que no
+# toca el binario que se instala en casa del cliente.
+mirilla = { git = "file:///home/juan/espejos/mirilla.git", rev = "c7de2e8" }
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+/target
+**/node_modules
+/frontend/dist
+/frontend/.angular
+# `estaticos/` YA NO es la salida de `ng build`: desde el 2026-08-06 guarda lo
+# VENDORIZADO —htmx, boi y el CSS propio—, y va versionado. Se embebe con
+# `include_str!`, así que si no está en el repositorio un clon limpio NO COMPILA.
+# Antes se ignoraba entero, que era correcto cuando lo llenaba el build.
+*.db
+*.db-wal
+*.db-shm
+/conversaciones
+
+# --- vendor/: árbol GENERADO, y ninguna regla de arriba le aplica ---
+# Medido el 2026-08-14 CLONANDO, que es la única forma de verlo: `git status` no
+# lista lo ignorado. Reglas globales como `target/` (sin barra inicial, casa a
+# cualquier profundidad), `*.bin`, `*.key` o `*.pem` se tragan archivos legítimos
+# de crates vendorizados, y el síntoma solo aparece en el clon con
+# `failed to open file vendor/…`.
+!vendor/**

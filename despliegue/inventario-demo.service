@@ -1,0 +1,43 @@
+; La demostración pública de inventario en inventario.xiliux.com.
+;
+; NO es una instalación de cliente y no debe confundirse con una: sus
+; credenciales están PUBLICADAS en la propia pantalla de acceso
+; (INVENTARIO_DEMO_USUARIO / INVENTARIO_DEMO_CLAVE) y cualquiera puede escribir
+; en su base. Una instalación de verdad no define esas dos variables, y entonces
+; /api/demo responde 204 y no hay nada que publicar. Es la ÚNICA diferencia
+; entre este binario y el que va a un mostrador: dos variables, no dos
+; compilaciones.
+[Unit]
+Description=inventario — demostración pública (inventario.xiliux.com)
+After=network.target
+
+[Service]
+Type=simple
+User=inventario
+Group=inventario
+WorkingDirectory=/opt/inventario-demo
+; El binario abre la base RELATIVA a su directorio de trabajo cuando
+; INVENTARIO_BD es una ruta relativa. Se pone absoluta en el EnvironmentFile
+; para que arrancar desde otro sitio no cree una base vacía en silencio — el
+; error que ya costó una tarde en medico.
+EnvironmentFile=/etc/inventario-demo/inventario.env
+ExecStart=/opt/inventario-demo/inventario-api
+Restart=on-failure
+RestartSec=3
+
+; Endurecimiento: la demo es pública y sus credenciales también.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/inventario-demo
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
